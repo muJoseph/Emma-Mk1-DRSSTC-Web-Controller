@@ -1,0 +1,942 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- title of the web page -->
+    <title>Emma Mk1 DRSSTC Controller</title>
+    <!-- link to the style.css file -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="page">
+    <h1>Emma Mk1 DRSSTC Controller</h1>
+    <p class="page-credit"><a href="https://github.com/muJoseph" target="_blank" rel="noopener noreferrer">github.com/muJoseph</a></p>
+
+    <section class="panel controls">
+    <h2>Set OCD Parameters</h2>
+    <!-- Form to set Over Current Detection (OCD) threshold and comparator hysteresis -->
+    <form method="get" action="/drsstc/set_ocd_params" id="set_ocd_params_form">
+        <div class="field-row">
+            <label for="ocd_max_current_a">OCD Limit (A)</label>
+            <div class="control">
+                <input type="number" id="ocd_max_current_a" name="ocd_max_current_a" min="{{ ocd_max_current_a_min }}" max="{{ ocd_max_current_a_max }}" value="{{ ocd_max_current_a | default(100) }}" step="1">
+                <button type="button" class="help-icon" aria-label="Help: OCD limit" title="OCD limit in Amps ({{ ocd_max_current_a_min }}–{{ ocd_max_current_a_max }} A). The driver faults when measured current exceeds this limit.">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="input_hysteresis">Comparator hysteresis</label>
+            <div class="control">
+                <select id="input_hysteresis" name="input_hysteresis">
+                    {% for choice in ocd_hysteresis_choices %}
+                    <option value="{{ choice.value }}"{% if choice.value == input_hysteresis %} selected{% endif %}>{{ choice.label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="help-icon" aria-label="Help: comparator hysteresis" title="Comparator hysteresis for the OCD sense input. Higher values reduce noise-induced false trips (0 mV = none, up to 70 mV in 10 mV steps).">?</button>
+            </div>
+        </div>
+        <div class="action-row">
+            <div class="control">
+                <button type="submit" class="enable-button">Submit</button>
+            </div>
+        </div>
+    </form>
+    <!-- Filled when set_ocd_params response arrives; stays blank until then -->
+    <div class="cmd-status" data-commands="set_ocd_params" hidden>
+        <span class="cmd-status-badge"></span>
+        <span class="cmd-status-detail"></span>
+    </div>
+    </section>
+
+    <section class="panel controls">
+    <h2>HV Bus Control</h2>
+    <!-- Switch replaces separate on/off buttons; amber track means the last successful command was On -->
+    <div class="hv-row">
+        <div class="control">
+            <span class="hv-state hv-off">Off</span>
+            <label class="hv-switch">
+                <input type="checkbox" id="hv_bus_toggle" {% if hv_bus_on %}checked{% endif %} aria-label="HV bus power">
+                <span class="hv-slider"></span>
+            </label>
+            <span class="hv-state hv-on">On</span>
+            <button type="button" class="help-icon" aria-label="Help: HV bus" title="On energizes the HV bus. The switch shows the last successful command, not a live hardware readback.">?</button>
+        </div>
+    </div>
+    <div class="cmd-status" data-commands="ctrl_hv_bus power_on_hv_bus power_off_hv_bus" hidden>
+        <span class="cmd-status-badge"></span>
+        <span class="cmd-status-detail"></span>
+    </div>
+    </section>
+
+    <section class="panel controls">
+    <h2>Burst Control</h2>
+    <!-- Form to start burst with user-editable parameters -->
+    <form method="get" action="/drsstc/start_burst" id="start_burst_form">
+        <div class="field-row">
+            <label for="start_freq_khz">Open loop frequency (kHz)</label>
+            <div class="control">
+                <!-- Visible kHz; hidden Hz is what persistence and the controller still use -->
+                <input type="number" id="start_freq_khz" min="0.001" max="10000" value="{{ start_freq_khz_display }}" step="0.001">
+                <input type="hidden" id="start_freq_hz" name="start_freq_hz" value="{{ start_freq_hz | default(264000) }}">
+                <button type="button" class="help-icon" aria-label="Help: open loop frequency" title="Frequency the driver starts at before feedback takes over (0.001–10,000 kHz).">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="prf_period_us">PRF period (µs)</label>
+            <div class="control">
+                <input type="number" id="prf_period_us" name="prf_period_us" min="1" max="1000000" value="{{ prf_period_us | default(5000) }}" step="1">
+            </div>
+        </div>
+        <!-- Sits between the two inputs: they are one value, period (µs) = 1e6 / frequency (Hz) -->
+        <div class="prf-link-row" role="img" aria-label="PRF period and PRF frequency are linked and express the same value" title="Period (µs) = 1,000,000 / frequency (Hz). Editing either updates the other. Only PRF period is sent to the controller.">
+            <svg class="prf-link-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+        </div>
+        <!-- Not submitted: period (µs) = 1e6 / frequency (Hz), and only period is sent -->
+        <div class="field-row">
+            <label for="prf_freq_hz">PRF frequency (Hz)</label>
+            <div class="control">
+                <input type="number" id="prf_freq_hz" min="1" max="1000000" step="any">
+                <button type="button" class="help-icon" aria-label="Help: PRF frequency" title="Pulse repetition frequency in hertz. Period (µs) = 1,000,000 / frequency. Changing either field updates the other. Only PRF period is sent to the controller.">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="prf_ontime_us">PRF on-time (µs)</label>
+            <div class="control">
+                <input type="number" id="prf_ontime_us" name="prf_ontime_us" min="1" max="1000000" value="{{ prf_ontime_us | default(100) }}" step="1">
+            </div>
+        </div>
+        <!-- Derived only: no name attribute so it is never submitted -->
+        <div class="field-row">
+            <span class="field-label">PRF duty cycle (%)</span>
+            <div class="control">
+                <span id="prf_duty_cycle" class="derived-value">—</span>
+                <span id="prf_duty_cycle_warning" class="derived-warning" hidden>Above 8%</span>
+                <button type="button" class="help-icon" aria-label="Help: PRF duty cycle" title="PRF on-time divided by PRF period × 100. Turns red above 8%. Display only; not sent to the controller.">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="lead_time_ns">Lead time (ns)</label>
+            <div class="control">
+                <input type="number" id="lead_time_ns" name="lead_time_ns" min="{{ lead_time_ns_min }}" max="{{ lead_time_ns_max }}" value="{{ lead_time_ns | default(0) }}" step="1">
+                <button type="button" class="help-icon" aria-label="Help: lead time" title="Gate drive lead time in nanoseconds ({{ lead_time_ns_min }}–{{ lead_time_ns_max }} ns).">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="burst_duration_ms">Burst duration (ms)</label>
+            <div class="control">
+                <!-- Not submitted: duration (ms) = period (µs) × cycles / 1000. Cycles is what the controller receives. -->
+                <!-- step=any: JS rounds to 0.001 ms. A 0.001 step grid can reject that rounded value and block a legal burst. min/max still warn and block Start Burst. -->
+                <input type="number" id="burst_duration_ms" min="0.001" max="60000" step="any">
+                <span id="burst_duration_warning" class="derived-warning" hidden>Outside 0.001–60000 ms</span>
+                <button type="button" class="help-icon" aria-label="Help: burst duration" title="Burst length in milliseconds. Duration (ms) = PRF period (µs) × PRF cycles / 1000. Editing duration updates PRF cycles, and editing cycles or period updates duration. Only PRF cycles is sent. Turns red outside 0.001–60,000 ms, and Start Burst is rejected above 60,000 ms. Enter 0 PRF cycles for a burst that runs until Stop Burst.">?</button>
+            </div>
+        </div>
+        <!-- Sits between the two inputs: duration (ms) = period (µs) × cycles / 1000 -->
+        <div class="prf-link-row" role="img" aria-label="Burst duration and PRF cycles are linked" title="Duration (ms) = PRF period (µs) × PRF cycles / 1000. Editing either updates the other. Only PRF cycles is sent to the controller. A finite burst must be at most 60,000 ms.">
+            <svg class="prf-link-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+        </div>
+        <div class="field-row">
+            <label for="num_burst_cycles">PRF cycles</label>
+            <div class="control">
+                <!-- No cycle-count cap: burst length is limited by burst duration (60,000 ms). 0 stays infinite. -->
+                <input type="number" id="num_burst_cycles" name="num_burst_cycles" min="0" value="{{ num_burst_cycles | default(1) }}" step="1">
+                <button type="button" class="help-icon" aria-label="Help: PRF cycles" title="Number of PRF cycles. Duration (ms) = PRF period (µs) × cycles / 1000. Changing duration or cycles updates the other. Use 0 for infinite cycles (until Stop Burst). A finite burst must be at most 60,000 ms.">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="start_freq_max_pos_dev_percnt">Tracked frequency <span class="dev-pos">positive</span> deviation (%)</label>
+            <div class="control">
+                <input type="number" id="start_freq_max_pos_dev_percnt" name="start_freq_max_pos_dev_percnt" min="{{ start_freq_max_pos_dev_percnt_min }}" max="{{ start_freq_max_pos_dev_percnt_max }}" value="{{ start_freq_max_pos_dev_percnt | default(5) }}" step="1">
+                <button type="button" class="help-icon" aria-label="Help: tracked frequency positive deviation" title="Maximum positive deviation above open loop frequency for frequency tracking ({{ start_freq_max_pos_dev_percnt_min }}–{{ start_freq_max_pos_dev_percnt_max }} %). Sets the maximum tracked frequency.">?</button>
+            </div>
+        </div>
+        <div class="field-row">
+            <label for="start_freq_max_neg_dev_percnt">Tracked frequency <span class="dev-neg">negative</span> deviation (%)</label>
+            <div class="control">
+                <input type="number" id="start_freq_max_neg_dev_percnt" name="start_freq_max_neg_dev_percnt" min="{{ start_freq_max_neg_dev_percnt_min }}" max="{{ start_freq_max_neg_dev_percnt_max }}" value="{{ start_freq_max_neg_dev_percnt | default(25) }}" step="1">
+                <button type="button" class="help-icon" aria-label="Help: tracked frequency negative deviation" title="Maximum negative deviation below open loop frequency for frequency tracking ({{ start_freq_max_neg_dev_percnt_min }}–{{ start_freq_max_neg_dev_percnt_max }} %). Sets the minimum tracked frequency.">?</button>
+            </div>
+        </div>
+        <!-- Derived only: no name attribute so it is never submitted -->
+        <div class="field-row">
+            <span class="field-label">Tracked frequency range</span>
+            <div class="control">
+                <span id="tracked_freq_range" class="derived-value">—</span>
+                <button type="button" class="help-icon" aria-label="Help: tracked frequency range" title="Lowest and highest frequency the driver may track, from open loop frequency and the two max deviations. Rounded to the nearest kHz. Display only; not sent to the controller.">?</button>
+            </div>
+        </div>
+    </form>
+    <!-- Start submits the form; Stop stays a separate GET so it cannot post burst parameters -->
+    <div class="action-row">
+        <div class="control">
+            <button type="submit" class="enable-button" form="start_burst_form">Start Burst</button>
+            <a href="/drsstc/stop_burst">
+                <button type="button" class="disable-button">Stop Burst</button>
+            </a>
+        </div>
+    </div>
+    <div class="cmd-status" data-commands="start_burst stop_burst" hidden>
+        <span class="cmd-status-badge"></span>
+        <span class="cmd-status-detail"></span>
+    </div>
+    </section>
+
+    <section class="panel controls">
+    <h2>Resonant Period Capture Dump</h2>
+    <!-- Dump capture buffer over UART; CSV is written on the RPi at the chosen path -->
+    <form method="get" action="/drsstc/get_res_per_cap_buffer" id="get_res_per_cap_buffer_form">
+        <div class="field-row">
+            <label for="res_per_cap_save_path">Save path</label>
+            <div class="control">
+                <input type="text" id="res_per_cap_save_path" name="save_path" value="{{ res_per_cap_csv_path }}">
+                <button type="button" class="help-icon" aria-label="Help: save path" title="Absolute or relative path on the Raspberry Pi where the uint32 capture buffer is written as CSV (one sample per line). Type a new path to change where it is saved.">?</button>
+            </div>
+        </div>
+        {# Browse hidden from the GUI; its script below no-ops when this input is absent
+        <!-- Browser file picker fills the path text field (client-side hint only; save is on the RPi host) -->
+        <div class="field-row">
+            <label for="res_per_cap_file_browser">Browse</label>
+            <div class="control">
+                <input type="file" id="res_per_cap_file_browser" accept=".csv,text/csv">
+                <button type="button" class="help-icon" aria-label="Help: browse for CSV path" title="Optional: pick a CSV file in the browser to copy its name into the save path field. The actual write still happens on the Raspberry Pi at the path shown above.">?</button>
+            </div>
+        </div>
+        #}
+        <div class="action-row">
+            <div class="control">
+                <button type="submit" class="enable-button">Start Dump</button>
+            </div>
+        </div>
+    </form>
+    <!-- UART transfer progress; hidden while idle, polled only around an active dump -->
+    <div class="dump-progress" id="res_per_cap_progress" data-initial-seq="{{ res_per_cap_progress_seq | default(0) }}" hidden>
+        <div class="dump-progress-track" role="progressbar" aria-label="Dump progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="dump-progress-fill" id="res_per_cap_progress_fill"></div>
+        </div>
+        <span class="dump-progress-text" id="res_per_cap_progress_text"></span>
+    </div>
+    <p class="download-row">
+        <a id="res_per_cap_download_link" href="/api/download_res_per_cap_csv"{% if not res_per_cap_csv_ready %} style="display:none"{% endif %}>
+            Download CSV
+        </a>
+    </p>
+    <div class="cmd-status" data-commands="get_res_per_cap_buffer" hidden>
+        <span class="cmd-status-badge"></span>
+        <span class="cmd-status-detail"></span>
+    </div>
+    </section>
+
+    <section id="last-command-response-tile" class="panel last-command-response-tile"
+        data-initial-timestamp="{{ last_command_response.timestamp_iso if last_command_response else '' }}"
+        data-initial-command="{{ last_command_response.command if last_command_response else '' }}"
+        data-initial-response-type="{{ last_command_response.response_type if last_command_response else '' }}"
+        data-initial-response-detail="{{ last_command_response.response_detail if last_command_response else '' }}">
+        <h2>Last Command Response</h2>
+        <div class="lcr-row">
+            <span class="lcr-label">Command:</span>
+            <span class="lcr-value" id="last-command">—</span>
+        </div>
+        <div class="lcr-row">
+            <span class="lcr-label">Response:</span>
+            <span class="lcr-value" id="last-response">—</span>
+        </div>
+        <div class="lcr-row">
+            <span class="lcr-label">Time:</span>
+            <span class="lcr-value" id="last-timestamp">—</span>
+        </div>
+    </section>
+    </div>
+
+    <script>
+(function() {
+    // Button submits and the post-burst refresh redirect to "/" as a new page load, which
+    // browsers open at the top. Save the offset on unload and restore it on the next load.
+    var SCROLL_KEY = 'portalScrollY';
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+    function saveScroll() {
+        try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY || window.pageYOffset || 0)); } catch (e) {}
+    }
+
+    function restoreScroll() {
+        var y = null;
+        try { y = sessionStorage.getItem(SCROLL_KEY); } catch (e) {}
+        if (y === null) return;
+        var n = parseInt(y, 10);
+        if (isFinite(n) && n > 0) window.scrollTo(0, n);
+    }
+
+    // pagehide covers mobile Safari, where beforeunload is unreliable
+    window.addEventListener('pagehide', saveScroll);
+    window.addEventListener('beforeunload', saveScroll);
+    restoreScroll();
+    // Late layout (fonts, unhidden status rows) can shift height; re-apply once fully loaded
+    window.addEventListener('load', restoreScroll);
+})();
+    </script>
+
+    <script>
+(function() {
+    var tile = document.getElementById('last-command-response-tile');
+    var initialTimestampIso = tile ? (tile.getAttribute('data-initial-timestamp') || '') : '';
+    var initialCommand = tile ? (tile.getAttribute('data-initial-command') || '') : '';
+    var initialResponseType = tile ? (tile.getAttribute('data-initial-response-type') || '') : '';
+    var initialResponseDetail = tile ? (tile.getAttribute('data-initial-response-detail') || '') : '';
+    var lastSeenTimestamp = initialTimestampIso;
+    var lastCommandEl = document.getElementById('last-command');
+    var lastResponseEl = document.getElementById('last-response');
+    var lastTimestampEl = document.getElementById('last-timestamp');
+    var hvToggle = document.getElementById('hv_bus_toggle');
+    // Held until a newer HV response arrives so a second click cannot stack commands
+    var hvInFlight = false;
+    var hvBaselineTimestamp = '';
+
+    function formatTime(iso) {
+        if (!iso) return '—';
+        try {
+            var d = new Date(iso);
+            return isNaN(d.getTime()) ? iso : d.toLocaleString();
+        } catch (e) { return iso; }
+    }
+
+    // Display names only; persisted command ids stay unchanged
+    var COMMAND_LABELS = {
+        ctrl_hv_bus: 'Control HV Bus',
+        power_on_hv_bus: 'Control HV Bus',
+        power_off_hv_bus: 'Control HV Bus',
+        start_burst: 'Start Burst',
+        stop_burst: 'Stop Burst',
+        set_ocd_params: 'Set OCD Parameters',
+        set_lead_time: 'Set Lead Time',
+        get_res_per_cap_buffer: 'Resonant Period Capture Dump',
+        start_timed_burst_sequence: 'Start Timed Burst Sequence',
+        reset: 'Reset',
+        ack_fault: 'Acknowledge Fault'
+    };
+
+    function formatCommand(id) {
+        if (!id) return '—';
+        return COMMAND_LABELS[id] || id;
+    }
+
+    function formatResponse(type, detail, command) {
+        var label = statusLabel(type);
+        if (!label) return '—';
+        var extra = (detail || '').trim();
+        var typeLower = (type || '').toLowerCase();
+        // Dump success used to append the save path; the tile only shows the status
+        if (command === 'get_res_per_cap_buffer' && typeLower === 'success') return label;
+        // "success — success" collapses to the status word; real faults and errors stay
+        if (!extra || extra.toLowerCase() === typeLower || extra.toLowerCase() === label.toLowerCase() || extra.toLowerCase() === 'success') {
+            return label;
+        }
+        return label + ': ' + extra;
+    }
+
+    function applyResponseColor(el, type) {
+        if (!el) return;
+        el.classList.remove('is-success', 'is-error', 'is-fault');
+        var t = (type || '').toLowerCase();
+        if (t === 'success' || t === 'error' || t === 'fault') el.classList.add('is-' + t);
+    }
+
+    function updateTile(data) {
+        if (!data || !data.command) return;
+        if (lastCommandEl) lastCommandEl.textContent = formatCommand(data.command);
+        if (lastResponseEl) {
+            lastResponseEl.textContent = formatResponse(data.response_type, data.response_detail, data.command);
+            applyResponseColor(lastResponseEl, data.response_type);
+        }
+        if (lastTimestampEl) lastTimestampEl.textContent = formatTime(data.timestamp_iso);
+    }
+
+    function statusLabel(type, command) {
+        // Dump completion uses Complete; response_type stays success so the 2s hide still applies
+        if (type === 'success' && command === 'get_res_per_cap_buffer') return 'Complete';
+        if (type === 'success') return 'Success';
+        if (type === 'error') return 'Error';
+        if (type === 'fault') return 'Fault';
+        return type;
+    }
+
+    // Success clears itself so a repeat press visibly re-flashes; Error/Fault stay until the next response
+    var SUCCESS_DISPLAY_MS = 2000;
+    // Poll returns the same response every 1.5 s; only a new timestamp may re-show a badge
+    var lastStatusTimestamp = '';
+
+    function applyBlockStatus(data) {
+        // Only the block that owns this command changes; other blocks keep their last result
+        if (!data || !data.command) return;
+        var ts = data.timestamp_iso || '';
+        if (ts && ts === lastStatusTimestamp) return;
+        lastStatusTimestamp = ts;
+        var nodes = document.querySelectorAll('.cmd-status');
+        for (var i = 0; i < nodes.length; i++) {
+            var commands = (nodes[i].getAttribute('data-commands') || '').split(/\s+/);
+            if (commands.indexOf(data.command) === -1) continue;
+            var type = (data.response_type || '').toLowerCase();
+            var badge = nodes[i].querySelector('.cmd-status-badge');
+            var detail = nodes[i].querySelector('.cmd-status-detail');
+            nodes[i].classList.remove('is-success', 'is-error', 'is-fault');
+            if (type === 'success' || type === 'error' || type === 'fault') {
+                nodes[i].classList.add('is-' + type);
+            }
+            if (badge) badge.textContent = statusLabel(type, data.command);
+            var extra = data.response_detail || '';
+            if (extra.toLowerCase() === 'success' || extra.toLowerCase() === type) extra = '';
+            // Word count and save path are not shown on a finished dump
+            if (data.command === 'get_res_per_cap_buffer' && type === 'success') extra = '';
+            if (detail) detail.textContent = extra;
+            nodes[i].hidden = false;
+            if (nodes[i]._hideTimer) clearTimeout(nodes[i]._hideTimer);
+            nodes[i]._hideTimer = null;
+            if (type === 'success') {
+                (function(node) {
+                    node._hideTimer = setTimeout(function() {
+                        node.hidden = true;
+                        node._hideTimer = null;
+                    }, SUCCESS_DISPLAY_MS);
+                })(nodes[i]);
+            }
+        }
+    }
+
+    function isHvCommand(command) {
+        return command === 'ctrl_hv_bus' || command === 'power_on_hv_bus' || command === 'power_off_hv_bus';
+    }
+
+    function applyHvConfirmed(data) {
+        // File flag is the last success; a failed command leaves it unchanged so the switch snaps back
+        if (!hvToggle || typeof data.hv_bus_on !== 'boolean') return;
+        hvToggle.checked = data.hv_bus_on;
+    }
+
+    function onPoll(data) {
+        if (!data) return;
+        updateTile(data);
+        applyBlockStatus(data);
+        var ts = data.timestamp_iso || '';
+        if (hvInFlight) {
+            if (ts && ts > hvBaselineTimestamp && isHvCommand(data.command)) {
+                applyHvConfirmed(data);
+                hvToggle.disabled = false;
+                hvInFlight = false;
+            }
+        } else {
+            applyHvConfirmed(data);
+        }
+        if (ts) lastSeenTimestamp = ts;
+
+        if ((data.command === 'start_burst' || data.command === 'start_timed_burst_sequence') && data.response_type === 'success' && (!initialTimestampIso || (data.timestamp_iso && data.timestamp_iso > initialTimestampIso))) {
+            location.replace('/');
+        }
+        if (data.command === 'get_res_per_cap_buffer' && data.response_type === 'success') {
+            var dl = document.getElementById('res_per_cap_download_link');
+            if (dl) dl.style.display = '';
+        }
+    }
+
+    if (hvToggle) {
+        hvToggle.addEventListener('change', function() {
+            if (hvInFlight) {
+                hvToggle.checked = !hvToggle.checked;
+                return;
+            }
+            var turnOn = hvToggle.checked;
+            hvBaselineTimestamp = lastSeenTimestamp;
+            hvInFlight = true;
+            hvToggle.disabled = true;
+            // fetch keeps the rest of the form; the route still redirects and that body is ignored
+            var url = turnOn ? '/drsstc/power_on_hv_bus' : '/drsstc/power_off_hv_bus';
+            fetch(url).catch(function() {
+                hvToggle.checked = !turnOn;
+                hvToggle.disabled = false;
+                hvInFlight = false;
+            });
+        });
+    }
+
+    if (initialCommand) {
+        updateTile({
+            command: initialCommand,
+            response_type: initialResponseType,
+            response_detail: initialResponseDetail,
+            timestamp_iso: initialTimestampIso
+        });
+    }
+    // Reload after Start Burst still shows that result because the saved response is rendered into the tile
+    if (initialCommand) {
+        applyBlockStatus({
+            command: initialCommand,
+            response_type: initialResponseType,
+            response_detail: initialResponseDetail,
+            timestamp_iso: initialTimestampIso
+        });
+    }
+
+    setInterval(function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/last_command_response');
+        xhr.onload = function() {
+            if (xhr.status !== 200) return;
+            try {
+                onPoll(JSON.parse(xhr.responseText));
+            } catch (e) {}
+        };
+        xhr.send();
+    }, 1500);
+})();
+    </script>
+
+    <script>
+(function() {
+    var slider = document.getElementById('set_lead_time_slider');
+    var numberInput = document.getElementById('set_lead_time_ns');
+    if (!slider || !numberInput) return;
+
+    var min = parseInt(slider.getAttribute('data-min'), 10) || 0;
+    var max = parseInt(slider.getAttribute('data-max'), 10) || 1000000000;
+    var step = parseInt(slider.getAttribute('data-step'), 10) || 1000000;
+
+    function clamp(val) {
+        var n = parseInt(val, 10);
+        if (isNaN(n)) n = min;
+        return Math.max(min, Math.min(max, n));
+    }
+
+    function syncSliderFromNumber() {
+        var val = clamp(numberInput.value);
+        numberInput.value = val;
+        slider.value = val;
+    }
+
+    function syncNumberFromSlider() {
+        var val = parseInt(slider.value, 10);
+        if (!isNaN(val)) numberInput.value = val;
+    }
+
+    slider.addEventListener('input', syncNumberFromSlider);
+    slider.addEventListener('change', function() {
+        syncNumberFromSlider();
+        var val = numberInput.value;
+        var url = '/drsstc/set_lead_time?lead_time_ns=' + encodeURIComponent(val);
+        fetch(url);
+    });
+
+    numberInput.addEventListener('input', syncSliderFromNumber);
+    numberInput.addEventListener('change', syncSliderFromNumber);
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', syncSliderFromNumber);
+    } else {
+        syncSliderFromNumber();
+    }
+})();
+    </script>
+
+    <script>
+(function() {
+    // Controller and saved JSON stay in Hz; the field the operator edits is kHz
+    var khzInput = document.getElementById('start_freq_khz');
+    var hzInput = document.getElementById('start_freq_hz');
+    var form = document.getElementById('start_burst_form');
+    if (!khzInput || !hzInput) return;
+
+    function syncHz() {
+        var khz = parseFloat(khzInput.value);
+        if (!isFinite(khz)) return;
+        hzInput.value = String(Math.round(khz * 1000));
+    }
+
+    khzInput.addEventListener('input', syncHz);
+    khzInput.addEventListener('change', syncHz);
+    if (form) form.addEventListener('submit', syncHz);
+    syncHz();
+
+    // Live tracked window so the operator sees the frequency bounds before Start Burst
+    var negInput = document.getElementById('start_freq_max_neg_dev_percnt');
+    var posInput = document.getElementById('start_freq_max_pos_dev_percnt');
+    var rangeEl = document.getElementById('tracked_freq_range');
+    if (!negInput || !posInput || !rangeEl) return;
+
+    function updateRange() {
+        var f = parseFloat(khzInput.value);
+        var neg = parseFloat(negInput.value);
+        var pos = parseFloat(posInput.value);
+        if (!isFinite(f) || !isFinite(neg) || !isFinite(pos)) {
+            rangeEl.textContent = '—';
+            return;
+        }
+        var lo = Math.round(f * (1 - neg / 100));
+        var hi = Math.round(f * (1 + pos / 100));
+        rangeEl.textContent = lo + ' kHz – ' + hi + ' kHz';
+    }
+
+    khzInput.addEventListener('input', updateRange);
+    negInput.addEventListener('input', updateRange);
+    posInput.addEventListener('input', updateRange);
+    updateRange();
+})();
+    </script>
+
+    <script>
+(function() {
+    // Live readout so the operator sees duty before pressing Start Burst.
+    // PRF frequency is display-only: period (µs) = 1e6 / frequency (Hz).
+    var DUTY_WARN_PERCENT = 8;
+    var PERIOD_MIN = 1;
+    var PERIOD_MAX = 1000000;
+    // Firmware numBurstCycles is uint32. The portal limit on a finite burst is duration, not this.
+    var CYCLES_MAX = 4294967295;
+    var periodInput = document.getElementById('prf_period_us');
+    var ontimeInput = document.getElementById('prf_ontime_us');
+    var freqInput = document.getElementById('prf_freq_hz');
+    var dutyEl = document.getElementById('prf_duty_cycle');
+    var warnEl = document.getElementById('prf_duty_cycle_warning');
+    var durationInput = document.getElementById('burst_duration_ms');
+    var durationWarnEl = document.getElementById('burst_duration_warning');
+    var cyclesInput = document.getElementById('num_burst_cycles');
+    var linkLock = false;
+    if (!periodInput || !ontimeInput || !dutyEl) return;
+
+    function formatHz(hz) {
+        var rounded = Math.round(hz * 1000) / 1000;
+        return String(rounded);
+    }
+
+    // 0.001 ms is 1 µs, so the displayed duration matches the integer period that will be sent
+    function formatMs(ms) {
+        var rounded = Math.round(ms * 1000) / 1000;
+        return String(rounded);
+    }
+
+    function updateDuty() {
+        var period = parseFloat(periodInput.value);
+        var ontime = parseFloat(ontimeInput.value);
+        if (!isFinite(period) || period <= 0 || !isFinite(ontime) || ontime < 0) {
+            dutyEl.textContent = '—';
+            dutyEl.classList.remove('is-warning');
+            if (warnEl) warnEl.hidden = true;
+            return;
+        }
+        var duty = ontime / period * 100;
+        dutyEl.textContent = duty.toFixed(2);
+        var warn = duty > DUTY_WARN_PERCENT;
+        dutyEl.classList.toggle('is-warning', warn);
+        if (warnEl) warnEl.hidden = !warn;
+    }
+
+    function setFreqFromPeriod() {
+        if (!freqInput) return;
+        var us = parseFloat(periodInput.value);
+        if (!isFinite(us) || us <= 0) return;
+        freqInput.value = formatHz(1e6 / us);
+    }
+
+    function setPeriodFromFreq(snapFreq) {
+        if (!freqInput) return;
+        var hz = parseFloat(freqInput.value);
+        if (!isFinite(hz) || hz <= 0) return;
+        var us = Math.round(1e6 / hz);
+        if (us < PERIOD_MIN) us = PERIOD_MIN;
+        if (us > PERIOD_MAX) us = PERIOD_MAX;
+        periodInput.value = String(us);
+        // Integer microseconds win, so the displayed Hz matches the period that will be sent
+        if (snapFreq) freqInput.value = formatHz(1e6 / us);
+    }
+
+    // Same red chip as PRF duty cycle when the typed or linked duration is outside the field min/max.
+    // An empty field is the infinite-burst placeholder, not a range violation.
+    function updateDurationWarning() {
+        if (!durationInput) return;
+        var raw = durationInput.value.trim();
+        var ms = parseFloat(raw);
+        var minMs = parseFloat(durationInput.min);
+        var maxMs = parseFloat(durationInput.max);
+        var warn = raw !== '' && isFinite(ms) && (ms < minMs || ms > maxMs);
+        durationInput.classList.toggle('is-warning', warn);
+        if (!durationWarnEl) return;
+        if (!warn) {
+            durationWarnEl.hidden = true;
+            return;
+        }
+        durationWarnEl.textContent = ms > maxMs ? 'Above 60000 ms' : 'Below 0.001 ms';
+        durationWarnEl.hidden = false;
+    }
+
+    // Cycles stay put when period changes; duration follows so the pair still matches the formula.
+    // 0 cycles is infinite (until Stop Burst), so the duration field is cleared rather than showing 0.
+    function setDurationFromCycles() {
+        if (!durationInput || !cyclesInput) return;
+        var cycles = parseFloat(cyclesInput.value);
+        var period = parseFloat(periodInput.value);
+        if (!isFinite(cycles)) return;
+        if (cycles === 0) {
+            durationInput.value = '';
+            durationInput.placeholder = 'infinite';
+            updateDurationWarning();
+            return;
+        }
+        if (!isFinite(period) || period <= 0) return;
+        durationInput.placeholder = '';
+        durationInput.value = formatMs(period * cycles / 1000);
+        updateDurationWarning();
+    }
+
+    // A positive duration picks an integer cycle count. Empty or 0 does not, so a brief clear
+    // while typing cannot turn the burst infinite. Blur snaps duration onto that integer count.
+    function setCyclesFromDuration(snapDuration) {
+        if (!durationInput || !cyclesInput) return;
+        var raw = durationInput.value.trim();
+        var ms = parseFloat(raw);
+        var period = parseFloat(periodInput.value);
+        if (raw === '' || !isFinite(ms) || ms <= 0 || !isFinite(period) || period <= 0) {
+            if (snapDuration) setDurationFromCycles();
+            else updateDurationWarning();
+            return;
+        }
+        var cycles = Math.round(ms * 1000 / period);
+        if (cycles < 1) cycles = 1;
+        if (cycles > CYCLES_MAX) cycles = CYCLES_MAX;
+        cyclesInput.value = String(cycles);
+        if (snapDuration) {
+            durationInput.placeholder = '';
+            durationInput.value = formatMs(period * cycles / 1000);
+        }
+        updateDurationWarning();
+    }
+
+    periodInput.addEventListener('input', function() {
+        if (linkLock) return;
+        linkLock = true;
+        setFreqFromPeriod();
+        updateDuty();
+        setDurationFromCycles();
+        linkLock = false;
+    });
+    if (freqInput) {
+        freqInput.addEventListener('input', function() {
+            if (linkLock) return;
+            linkLock = true;
+            setPeriodFromFreq(false);
+            updateDuty();
+            setDurationFromCycles();
+            linkLock = false;
+        });
+        // Snap Hz to the rounded period once the operator leaves the field
+        freqInput.addEventListener('change', function() {
+            if (linkLock) return;
+            linkLock = true;
+            setPeriodFromFreq(true);
+            updateDuty();
+            setDurationFromCycles();
+            linkLock = false;
+        });
+    }
+    if (cyclesInput) {
+        cyclesInput.addEventListener('input', function() {
+            if (linkLock) return;
+            linkLock = true;
+            setDurationFromCycles();
+            linkLock = false;
+        });
+    }
+    if (durationInput) {
+        durationInput.addEventListener('input', function() {
+            if (linkLock) return;
+            linkLock = true;
+            setCyclesFromDuration(false);
+            linkLock = false;
+        });
+        // Snap duration to the integer cycle count once the operator leaves the field
+        durationInput.addEventListener('change', function() {
+            if (linkLock) return;
+            linkLock = true;
+            setCyclesFromDuration(true);
+            linkLock = false;
+        });
+    }
+    ontimeInput.addEventListener('input', updateDuty);
+    setFreqFromPeriod();
+    updateDuty();
+    setDurationFromCycles();
+})();
+    </script>
+
+    <script>
+(function() {
+    var box = document.getElementById('res_per_cap_progress');
+    var fill = document.getElementById('res_per_cap_progress_fill');
+    var text = document.getElementById('res_per_cap_progress_text');
+    var form = document.getElementById('get_res_per_cap_buffer_form');
+    if (!box || !fill || !text) return;
+    var track = box.querySelector('.dump-progress-track');
+    var POLL_MS = 250;
+    var DONE_DISPLAY_MS = 2000;
+    // Start Dump reloads the page before the controller writes "active"; remember the old seq so a stale result is ignored
+    var PENDING_KEY = 'resPerCapDumpPendingSeq';
+    // Stop waiting for a new dump if the controller never picks it up
+    var PENDING_TIMEOUT_MS = 10000;
+    // Rendered server-side so a Start Dump click before the first fetch still has the right baseline
+    var lastSeq = parseInt(box.getAttribute('data-initial-seq'), 10) || 0;
+    var pollTimer = null;
+    var hideTimer = null;
+    var pendingSince = 0;
+
+    function readPending() {
+        try {
+            var raw = sessionStorage.getItem(PENDING_KEY);
+            return raw === null ? null : parseInt(raw, 10);
+        } catch (e) { return null; }
+    }
+
+    function clearPending() {
+        try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
+    }
+
+    function setState(cls) {
+        box.classList.remove('is-waiting', 'is-active', 'is-done', 'is-error');
+        if (cls) box.classList.add(cls);
+    }
+
+    function render(p) {
+        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        var state = p.state || 'idle';
+        var received = parseInt(p.received, 10) || 0;
+        var total = parseInt(p.total, 10) || 0;
+        if (state === 'idle') {
+            box.hidden = true;
+            return;
+        }
+        box.hidden = false;
+        if (state === 'active' && total <= 0) {
+            setState('is-waiting');
+            fill.style.width = '';
+            if (track) track.setAttribute('aria-valuenow', '0');
+            text.textContent = 'Waiting for data';
+            return;
+        }
+        var pct = total > 0 ? Math.min(100, Math.floor(received / total * 100)) : 0;
+        if (state === 'done') pct = 100;
+        fill.style.width = pct + '%';
+        if (track) track.setAttribute('aria-valuenow', String(pct));
+        if (state === 'active') {
+            setState('is-active');
+            text.textContent = pct + '%';
+        } else if (state === 'done') {
+            setState('is-done');
+            // Percent only; byte count and save path are not shown
+            text.textContent = pct + '%';
+            hideTimer = setTimeout(function() { box.hidden = true; }, DONE_DISPLAY_MS);
+        } else if (state === 'error') {
+            setState('is-error');
+            text.textContent = 'Dump failed' + (p.detail ? ': ' + p.detail : '');
+        }
+    }
+
+    function stopPolling() {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    function handle(p, initial) {
+        var seq = parseInt(p.seq, 10) || 0;
+        var pending = readPending();
+        if (pending !== null) {
+            if (seq <= pending) {
+                // Still the previous dump's file; keep waiting for the controller to start the new one
+                if (Date.now() - pendingSince > PENDING_TIMEOUT_MS) {
+                    clearPending();
+                    stopPolling();
+                } else {
+                    render({ state: 'active', received: 0, total: 0 });
+                }
+                return;
+            }
+            clearPending();
+        }
+        lastSeq = seq;
+        var state = p.state || 'idle';
+        // A finished dump from an earlier visit is not news; errors stay visible until the next Start Dump
+        if (initial && pending === null && state === 'done') {
+            box.hidden = true;
+            return;
+        }
+        render(p);
+        if (state === 'active') {
+            startPolling();
+        } else {
+            stopPolling();
+        }
+    }
+
+    function fetchProgress(initial) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/res_per_cap_progress');
+        xhr.onload = function() {
+            if (xhr.status !== 200) return;
+            try { handle(JSON.parse(xhr.responseText), initial); } catch (e) {}
+        };
+        xhr.send();
+    }
+
+    function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(function() { fetchProgress(false); }, POLL_MS);
+    }
+
+    if (form) {
+        form.addEventListener('submit', function() {
+            try { sessionStorage.setItem(PENDING_KEY, String(lastSeq)); } catch (e) {}
+        });
+    }
+
+    if (readPending() !== null) {
+        pendingSince = Date.now();
+        render({ state: 'active', received: 0, total: 0 });
+        startPolling();
+    }
+    fetchProgress(true);
+})();
+    </script>
+
+    <script>
+(function() {
+    var form = document.getElementById('set_ocd_params_form');
+    if (!form) return;
+    form.addEventListener('submit', function(ev) {
+        // A full navigation re-renders from last_ocd_params.json before the controller
+        // records success, so the limit snaps back to the previous value.
+        ev.preventDefault();
+        var params = new URLSearchParams(new FormData(form));
+        fetch(form.getAttribute('action') + '?' + params.toString()).catch(function() {});
+    });
+})();
+    </script>
+
+    <script>
+(function() {
+    // File picker only supplies a filename hint; actual CSV write is on the RPi host path field
+    var fileInput = document.getElementById('res_per_cap_file_browser');
+    var pathInput = document.getElementById('res_per_cap_save_path');
+    if (!fileInput || !pathInput) return;
+    fileInput.addEventListener('change', function() {
+        if (!fileInput.files || fileInput.files.length === 0) return;
+        var name = fileInput.files[0].name || 'res_per_cap_buffer.csv';
+        var cur = (pathInput.value || '').replace(/\\/g, '/');
+        var slash = cur.lastIndexOf('/');
+        if (slash >= 0) {
+            pathInput.value = cur.slice(0, slash + 1) + name;
+        } else {
+            pathInput.value = name;
+        }
+    });
+})();
+    </script>
+
+</body>
+</html>

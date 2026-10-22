@@ -1,0 +1,524 @@
+/* static/style.css — dark engineering panel; dense and left-aligned so values scan in a column */
+body {
+    font-family: sans-serif;
+    background-color: #12151a;
+    color: #e8eaed;
+    margin: 0;
+    padding: 1.25rem 1rem 2rem;
+    color-scheme: dark;
+}
+
+.page {
+    max-width: 42rem;
+    margin: 0 auto;
+    text-align: left;
+}
+
+h1 {
+    color: #e8eaed;
+    font-weight: 650;
+    font-size: 1.45rem;
+    margin: 0 0 0.2rem;
+}
+
+/* Subtitle under h1: muted like field labels, accent only on hover so it does not compete with controls */
+.page-credit {
+    margin: 0 0 1rem;
+    font-size: 0.85rem;
+}
+
+.page-credit a,
+.page-credit a:visited {
+    color: #9aa3ad;
+    text-decoration: none;
+}
+
+.page-credit a:hover,
+.page-credit a:focus-visible {
+    color: #7eb6ff;
+    text-decoration: underline;
+}
+
+.panel {
+    background-color: #1a1f27;
+    border: 1px solid #2c3440;
+    border-radius: 6px;
+    padding: 0.85rem 1rem 0.9rem;
+    margin: 0 0 0.75rem;
+}
+
+h2 {
+    color: #e8eaed;
+    font-size: 0.82rem;
+    font-weight: 650;
+    font-style: normal;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0 0 0.35rem;
+}
+
+/* Same two columns in every action panel so inputs, the switch, and buttons share one left edge */
+.panel.controls {
+    display: grid;
+    grid-template-columns: 22em minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.35rem;
+    align-items: center;
+}
+
+.panel.controls > h2 {
+    grid-column: 1 / -1;
+}
+
+.panel.controls > form {
+    display: contents;
+}
+
+.field-row,
+.action-row,
+.hv-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+}
+
+/* Between a linked pair (PRF period/frequency, or burst duration/PRF cycles) */
+/* Same box as a number input (width, padding, border) so centering the icon lands on the
+   inputs' midline. Font size matches the browser's default control font, which sizes the em width. */
+.prf-link-row {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 8.5em;
+    font-size: 13.333px;
+    padding: 0 0.4rem;
+    border: 1px solid transparent;
+    margin: -0.1rem 0;
+    color: #7eb6ff;
+    cursor: help;
+}
+
+.prf-link-icon {
+    flex: 0 0 auto;
+    display: block;
+}
+
+.field-row label,
+.field-row .field-label {
+    text-align: left;
+    color: #c5cdd6;
+    margin: 0;
+}
+
+/* Same green and red chips as the success and error command badges */
+.dev-pos,
+.dev-neg {
+    font-weight: 650;
+    padding: 0.02rem 0.28rem;
+    border-radius: 4px;
+}
+
+.dev-pos {
+    color: #d8ffe0;
+    background: #1b5e20;
+}
+
+.dev-neg {
+    color: #ffd6d6;
+    background: #8e2424;
+}
+
+.control {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-width: 0;
+    grid-column: 2;
+}
+
+form input[type="number"],
+form input[type="text"],
+form select {
+    background-color: #12151a;
+    color: #e8eaed;
+    border: 1px solid #3a4454;
+    border-radius: 4px;
+    padding: 0.28rem 0.4rem;
+    margin: 0;
+}
+
+form input[type="number"] {
+    width: 8.5em;
+    /* Explicit (browser default) so .prf-link-row can mirror this width exactly */
+    font-size: 13.333px;
+}
+
+form input[type="text"] {
+    flex: 1;
+    min-width: 8em;
+    width: auto;
+}
+
+form input:focus,
+form select:focus {
+    outline: 1px solid #7eb6ff;
+    border-color: #7eb6ff;
+}
+
+.action-row {
+    margin: 0.35rem 0 0;
+}
+
+.action-row a {
+    text-decoration: none;
+}
+
+/* Generic Enable button */
+.enable-button {
+    background-color: #2e7d32;
+    border: none;
+    color: white;
+    padding: 0.55rem 1.1rem;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 0.95rem;
+    margin: 0;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.enable-button:hover {
+    background-color: #388e3c;
+}
+
+/* Generic Disable button */
+.disable-button {
+    background-color: #c62828;
+    border: none;
+    color: white;
+    padding: 0.55rem 1.1rem;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 0.95rem;
+    margin: 0;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.disable-button:hover {
+    background-color: #d32f2f;
+}
+
+/* Tooltip help next to form fields (native title on focus/hover) */
+.help-icon {
+    border-radius: 50%;
+    width: 1.25em;
+    height: 1.25em;
+    line-height: 1.15em;
+    padding: 0;
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: help;
+    flex: 0 0 auto;
+    border: 1px solid #5c6775;
+    background: #2a3140;
+    color: #e8eaed;
+}
+
+.hv-row .control {
+    gap: 0.65rem;
+}
+
+.hv-state {
+    min-width: 2em;
+    color: #9aa3ad;
+    font-size: 0.9rem;
+}
+
+/* Active side of the switch is the one the operator should notice */
+.hv-row:not(:has(#hv_bus_toggle:checked)) .hv-off {
+    color: #e8eaed;
+    font-weight: 650;
+}
+
+.hv-row:has(#hv_bus_toggle:checked) .hv-on {
+    color: #e6a23c;
+    font-weight: 650;
+}
+
+.hv-switch {
+    position: relative;
+    display: inline-block;
+    width: 3.2rem;
+    height: 1.6rem;
+    flex: 0 0 auto;
+}
+
+.hv-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.hv-slider {
+    position: absolute;
+    inset: 0;
+    background: #3a4250;
+    border-radius: 1.6rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.hv-slider::before {
+    content: "";
+    position: absolute;
+    height: 1.2rem;
+    width: 1.2rem;
+    left: 0.2rem;
+    top: 0.2rem;
+    background: #e8eaed;
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+}
+
+/* Amber track: energized bus must read differently from a normal enable button */
+.hv-switch input:checked + .hv-slider {
+    background: #e6a23c;
+}
+
+.hv-switch input:checked + .hv-slider::before {
+    transform: translateX(1.6rem);
+}
+
+.hv-switch input:disabled + .hv-slider {
+    opacity: 0.55;
+    cursor: wait;
+}
+
+.hv-switch input:focus-visible + .hv-slider {
+    outline: 1px solid #7eb6ff;
+    outline-offset: 2px;
+}
+
+.download-row {
+    grid-column: 2;
+    margin: 0.25rem 0 0;
+}
+
+.download-row a {
+    color: #7eb6ff;
+}
+
+/* Same two columns as the action panels so the label and the value are easy to tell apart */
+.last-command-response-tile {
+    display: grid;
+    grid-template-columns: 22em minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.35rem;
+    align-items: center;
+}
+
+.last-command-response-tile > h2 {
+    grid-column: 1 / -1;
+}
+
+.lcr-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+}
+
+.lcr-label {
+    color: #c5cdd6;
+}
+
+.lcr-value {
+    color: #e8eaed;
+    grid-column: 2;
+    min-width: 0;
+}
+
+/* Same green / red / amber as the command badges, as text on the dark panel */
+.lcr-value.is-success {
+    color: #d8ffe0;
+}
+
+.lcr-value.is-error {
+    color: #ffd6d6;
+}
+
+.lcr-value.is-fault {
+    color: #fff3d6;
+}
+
+/* Same badge in every action panel; hidden until that panel's command has a response */
+.cmd-status {
+    grid-column: 2;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0.15rem 0 0;
+}
+
+.cmd-status:not([hidden]) {
+    display: flex;
+}
+
+.cmd-status-badge {
+    font-size: 0.75rem;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.45rem;
+    border-radius: 4px;
+}
+
+.cmd-status.is-success .cmd-status-badge {
+    color: #d8ffe0;
+    background: #1b5e20;
+}
+
+.cmd-status.is-error .cmd-status-badge {
+    color: #ffd6d6;
+    background: #8e2424;
+}
+
+.cmd-status.is-fault .cmd-status-badge {
+    color: #fff3d6;
+    background: #8a5a12;
+}
+
+.cmd-status-detail {
+    color: #c5cdd6;
+    font-size: 0.85rem;
+}
+
+/* Read-only computed value; sized like a number input so the column stays even */
+.derived-value {
+    display: inline-block;
+    min-width: 8.5em;
+    box-sizing: border-box;
+    padding: 0.28rem 0.4rem;
+    border: 1px dashed #3a4454;
+    border-radius: 4px;
+    color: #e8eaed;
+    font-variant-numeric: tabular-nums;
+}
+
+.derived-value.is-warning,
+form input[type="number"].is-warning,
+form input[type="number"].is-warning:focus {
+    color: #ffd6d6;
+    background: #8e2424;
+    border-color: #8e2424;
+    outline-color: #ff8a8a;
+}
+
+.derived-warning {
+    color: #ff8a8a;
+    font-size: 0.85rem;
+    font-weight: 650;
+}
+
+.dump-progress {
+    grid-column: 2;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.25rem 0 0;
+}
+
+.dump-progress:not([hidden]) {
+    display: flex;
+}
+
+.dump-progress-track {
+    position: relative;
+    flex: 1;
+    max-width: 16rem;
+    height: 0.6rem;
+    background: #12151a;
+    border: 1px solid #3a4454;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.dump-progress-fill {
+    height: 100%;
+    width: 0;
+    background: #7eb6ff;
+    transition: width 0.2s ease;
+}
+
+.dump-progress.is-done .dump-progress-fill {
+    background: #2e7d32;
+}
+
+.dump-progress.is-error .dump-progress-fill {
+    width: 100%;
+    background: #8e2424;
+}
+
+/* No total yet: sliding block so the operator knows the request is alive */
+.dump-progress.is-waiting .dump-progress-fill {
+    position: absolute;
+    width: 30%;
+    animation: dump-progress-wait 1.2s ease-in-out infinite;
+}
+
+@keyframes dump-progress-wait {
+    0% { left: -30%; }
+    100% { left: 100%; }
+}
+
+.dump-progress-text {
+    color: #c5cdd6;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: pre;
+}
+
+.dump-progress.is-error .dump-progress-text {
+    color: #ff8a8a;
+}
+
+@media (max-width: 720px) {
+    .panel.controls {
+        grid-template-columns: 1fr;
+    }
+    .field-row,
+    .action-row,
+    .hv-row {
+        display: block;
+        margin: 0.4rem 0;
+    }
+    .prf-link-row {
+        grid-column: 1;
+        margin: 0.15rem 0;
+    }
+    .last-command-response-tile {
+        display: block;
+    }
+    .lcr-row {
+        display: block;
+        margin: 0.4rem 0;
+    }
+    .lcr-value {
+        display: block;
+        margin-top: 0.15rem;
+    }
+    .download-row,
+    .cmd-status,
+    .dump-progress {
+        grid-column: 1;
+    }
+    .control {
+        margin-top: 0.2rem;
+    }
+}
